@@ -1,0 +1,85 @@
+#!/usr/bin/env php
+<?php
+include_once 'vendor/autoload.php';
+
+use Stichoza\GoogleTranslate\TranslateClient;
+use Symfony\Component\Console\Application;
+use Symfony\Component\Console\Input\InputInterface;
+use Symfony\Component\Console\Input\InputArgument;
+use Symfony\Component\Console\Input\InputOption;
+use Symfony\Component\Console\Output\OutputInterface;
+
+$console = new Application();
+
+$tr = new TranslateClient();
+
+$defaultLang = 'en';
+$langs = ['en','es','fr', 'tr', 'de', 'pt','it'];
+
+// sets language
+$tr->setSource($defaultLang);
+
+$console
+    ->register('trans:text')
+    ->setDefinition([
+        new InputArgument('phrase', InputArgument::REQUIRED, 'The phrase you wanna translate.'),
+        new InputArgument('specificLang', InputArgument::OPTIONAL, 'A specific language to translate.'),
+    ])
+    ->setDescription('Translate a text')
+    ->setHelp('Just put the <info>phrase</info>.')
+    ->setCode(function(InputInterface $input, OutputInterface $output) use ($tr, $defaultLang, $langs) {
+        $phrase = $input->getArgument('phrase');
+        $specificLang = $input->getArgument('specificLang');
+
+        foreach ($langs as $lang) {
+            if ($defaultLang === $lang
+                or ($specificLang and $specificLang !== $lang))
+                continue;
+
+            $translation = $tr->setTarget($lang)->translate($phrase);
+            $output->writeln(sprintf("<info>[%s]</info> %s", $lang, $translation));
+        }
+    });
+
+$console
+    ->register('trans:file')
+    ->setDefinition([
+        new InputArgument('input', InputArgument::REQUIRED, 'The location of file you wanna translate.'),
+        new InputArgument('output', InputArgument::OPTIONAL, 'The output location of file you wanna translate.'),
+    ])
+    ->setDescription('Translate a file')
+    ->setHelp('Just put the <info>file</info>')
+    ->setCode(function(InputInterface $input, OutputInterface $output) use ($tr, $defaultLang, $langs) {
+        $inputFile = $input->getArgument('input');
+        $outputFile = $input->getArgument('output');
+
+        if (!is_file($inputFile)) {
+            throw new Exception("Input file does not exists", 1);
+        }
+
+        $file = fopen($inputFile, 'r');
+        $outputHandle = fopen($outputFile, 'c');
+        foreach ($langs as $lang) {
+            if ($defaultLang === $lang) continue;
+
+            if ($outputFile)
+                fwrite($outputHandle, sprintf("####### %s #######\n", strtoupper($lang)));
+
+            while (($read = fgets($file, 4096)) !== false) {
+                $translation = $tr->setTarget($lang)->translate($read);
+
+                if ($outputFile) {
+                    fwrite($outputHandle, sprintf("%s\n", $translation));
+                } else {
+                    $output->writeln(sprintf("<info>[%s]</info> %s", $lang, $translation));
+                }
+            }
+            if (!$outputFile) $output->writeln('');
+            rewind($file);
+            fwrite($outputHandle, "\n\n");
+        }
+
+        fclose($file);
+    });
+
+$console->run();

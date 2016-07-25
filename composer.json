@@ -1,0 +1,6 @@
+{
+    "require": {
+        "stichoza/google-translate-php": "^3.2",
+        "symfony/console": "^3.1"
+    }
+}
